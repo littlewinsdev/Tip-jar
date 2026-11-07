@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#172b35"><title>Tip Jar | Little Wins Development</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#f3f6f4;color:#172b35;font:16px system-ui,sans-serif}header{background:#172b35;color:white;padding:24px 18px}main{max-width:650px;margin:auto;padding:18px}h1{margin:0;font-size:30px}h2{font-size:20px}small{opacity:.8}.card{background:white;padding:18px;border-radius:16px;margin:14px 0;box-shadow:0 2px 12px #0001}.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{background:#e4f2ea;padding:14px;border-radius:12px}.stat b{display:block;font-size:23px;margin-top:4px}label{display:block;font-weight:600;margin:12px 0 5px}input,textarea{width:100%;padding:12px;border:1px solid #b8c7c2;border-radius:9px;font:inherit}button{border:0;background:#176b54;color:white;border-radius:9px;padding:12px 15px;font-weight:700;cursor:pointer;margin:5px 5px 5px 0}.secondary{background:#e8efeb;color:#172b35}.danger{background:#a33232}.entry{border-top:1px solid #dfe7e2;padding:12px 0}.muted{color:#52645c}footer{text-align:center;color:#52645c;padding:20px;font-size:13px}</style></head>
+<body><header><div style="max-width:650px;margin:auto"><small>by Little Wins Development</small><h1>Tip Jar</h1><p>Track your tips. Know your hourly earnings.</p></div></header>
+<main><section class="card"><h2>Your totals</h2><div class="stats"><div class="stat">This week<b id="week">$0.00</b></div><div class="stat">All time<b id="total">$0.00</b></div><div class="stat">Hours logged<b id="hours">0</b></div><div class="stat">Tips / hour<b id="rate">$0.00</b></div></div></section>
+<section class="card"><h2 id="formtitle">Add a shift</h2><form id="form"><label for="date">Shift date</label><input id="date" type="date" required><label for="hoursInput">Hours worked</label><input id="hoursInput" type="number" min=".01" step=".01" required placeholder="6.5"><label for="cash">Cash tips ($)</label><input id="cash" type="number" min="0" step=".01" value="0" required><label for="card">Card tips ($)</label><input id="card" type="number" min="0" step=".01" value="0" required><label for="notes">Notes (optional)</label><textarea id="notes" rows="2"></textarea><p id="preview" class="muted"></p><button type="submit" id="save">Save shift</button><button type="button" id="cancel" class="secondary" hidden>Cancel edit</button></form></section>
+<section class="card"><h2>Shift history</h2><button type="button" id="export" class="secondary">Export CSV</button><p class="muted">Saved on this device only. Export regularly to back up your records.</p><div id="entries"></div></section></main><footer>Tip Jar · Little Wins Development · Beta 0.1</footer>
+<script>
+const KEY='littlewins-tipjar-v1', $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
+let shifts=[];let editing=null;
+try{const v=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(v))shifts=v}catch(e){alert('Saved shifts could not be read. Please export or contact support before adding more.')}
+const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
+$('date').value=today();
+const total=s=>s.cash+s.card;
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(shifts));return true}catch(e){alert('Could not save. Check browser storage settings.');return false}}
+function render(){
+const sum=shifts.reduce((a,s)=>a+total(s),0),hrs=shifts.reduce((a,s)=>a+s.hours,0);
+const d=new Date(),day=(d.getDay()+6)%7;d.setHours(0,0,0,0);d.setDate(d.getDate()-day);const monday=todayFrom(d);
+$('week').textContent=money(shifts.filter(s=>s.date>=monday).reduce((a,s)=>a+total(s),0));$('total').textContent=money(sum);$('hours').textContent=hrs.toFixed(2);$('rate').textContent=money(hrs?sum/hrs:0);
+$('entries').replaceChildren();
+for(const s of [...shifts].sort((a,b)=>b.date.localeCompare(a.date))){
+const item=document.createElement('div');item.className='entry';
+const heading=document.createElement('strong');heading.textContent=s.date+' · '+money(total(s));item.append(heading);
+const detail=document.createElement('p');detail.className='muted';detail.textContent=s.hours+' hours · '+money(total(s)/s.hours)+'/hr · Cash '+money(s.cash)+' · Card '+money(s.card)+(s.notes?' · '+s.notes:'');item.append(detail);
+const edit=document.createElement('button');edit.className='secondary';edit.textContent='Edit';edit.onclick=()=>{editing=s.id;for(const k of ['date','cash','card','notes'])$(k).value=s[k];$('hoursInput').value=s.hours;$('formtitle').textContent='Edit shift';$('save').textContent='Update shift';$('cancel').hidden=false;window.scrollTo({top:200,behavior:'smooth'})};item.append(edit);
+const del=document.createElement('button');del.className='danger';del.textContent='Delete';del.onclick=()=>{if(confirm('Delete this shift?')){const old=shifts;shifts=shifts.filter(x=>x.id!==s.id);if(!persist())shifts=old;render()}};item.append(del);$('entries').append(item)}
+if(!shifts.length){const p=document.createElement('p');p.className='muted';p.textContent='No shifts yet. Add your first shift above.';$('entries').append(p)}
+}
+function todayFrom(d){return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}
+function reset(){$('form').reset();$('date').value=today();$('cash').value=0;$('card').value=0;editing=null;$('formtitle').textContent='Add a shift';$('save').textContent='Save shift';$('cancel').hidden=true;$('preview').textContent=''}
+$('cancel').onclick=reset;
+$('form').oninput=()=>{const h=Number($('hoursInput').value),t=Number($('cash').value)+Number($('card').value);$('preview').textContent='Total tips: '+money(t)+(h>0?' · '+money(t/h)+'/hour':'')};
+$('form').onsubmit=e=>{e.preventDefault();const hours=Number($('hoursInput').value),cash=Number($('cash').value),card=Number($('card').value),date=$('date').value;if(!date||!Number.isFinite(hours)||hours<=0||![cash,card].every(n=>Number.isFinite(n)&&n>=0)){alert('Enter valid hours and nonnegative tip amounts.');return}const shift={id:editing||String(Date.now())+'-'+Math.random(),date,hours,cash,card,notes:$('notes').value.trim()};const old=[...shifts];shifts=editing?shifts.map(s=>s.id===editing?shift:s):[...shifts,shift];if(!persist()){shifts=old;return}reset();render()};
+$('export').onclick=()=>{const csv=[['Date','Hours','Cash tips','Card tips','Total tips','Tips per hour','Notes'],...shifts.map(s=>[s.date,s.hours,s.cash,s.card,total(s),(total(s)/s.hours).toFixed(2),s.notes])].map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='tip-jar-shifts.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+render();
+</script></body></html>
